@@ -8,7 +8,14 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['var(--font-plus-jakarta-sans)', 'sans-serif'],
+        heading: ['var(--font-inter)', 'sans-serif'],
+      },
       colors: {
+        primary: '#0F52BA',
+        secondary: '#4CAF50',
+        accent: '#FFD700',
         background: "var(--background)",
         foreground: "var(--foreground)",
       },

@@ -1,0 +1,195 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String        @id @default(cuid())
+  name          String?
+  email         String        @unique
+  password      String
+  emailVerified DateTime?
+  image         String?
+  role          String        @default("user") // 'user' 또는 'admin'
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  masterKeySalt      String?  @db.Text  // 마스터 키 유도에 사용된 salt (Base64)
+  encryptedMasterKey String?  @db.Text  // 백업 비밀번호로 암호화된 마스터 키 (Base64)
+  masterKeyIv        String?  @db.Text  // 마스터 키 암호화에 사용된 IV (Base64)
+  recoveryEnabled    Boolean  @default(false) // 복구가 활성화되었는지 여부
+  accounts      Account[]
+  activityLogs  ActivityLog[]
+  contacts      Contact[]
+  files         File[]
+  sessions      Session[]
+  subscriptions Subscription[]
+  payments      Payment[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model File {
+  id          String   @id @default(cuid())
+  name        String
+  size        Int
+  contentType String
+  path        String
+  storagePath String
+  ivVector    String?  @db.Text // 파일 암호화에 사용된 IV
+  encryptedFileKey String?  @db.Text // 마스터 키로 암호화된 파일 키 (Base64)
+  fileKeyIv        String?  @db.Text // 파일 키 암호화에 사용된 IV (Base64)
+  masterKeySalt    String?  @db.Text // 마스터 키 유도에 사용된 salt (Base64)
+  keyVersion       Int      @default(1) // 키 버전 관리용
+  metaData    Json?
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Contact {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  email       String
+  phoneNumber String?
+  relation    String?
+  accessFiles Json?
+  conditions  Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  resourceId String?
+  details    Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// 요금제 정보
+model Plan {
+  id              String    @id @default(cuid())
+  name            String    // 기본, 표준, 프리미엄
+  description     String?
+  priceMonthly    Int       // 월간 요금(원)
+  priceYearly     Int       // 연간 요금(원)
+  storageLimit    Int       // GB 단위
+  contactLimit    Int       // 신뢰할 수 있는 연락처 수 제한
+  features        Json      // 추가 기능 목록
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  subscriptions   Subscription[]
+}
+
+// 구독 정보
+model Subscription {
+  id              String    @id @default(cuid())
+  userId          String
+  planId          String
+  status          String    // active, canceled, expired
+  startDate       DateTime  @default(now())
+  endDate         DateTime
+  autoRenew       Boolean   @default(true)
+  paymentMethod   String?   // card, bank_transfer 등
+  cancellationReason String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  payments        Payment[]
+  refunds         Refund[]
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan            Plan      @relation(fields: [planId], references: [id])
+}
+
+// 결제 정보
+model Payment {
+  id              String    @id @default(cuid())
+  subscriptionId  String
+  amount          Int       // 결제 금액
+  currency        String    @default("KRW")
+  paymentMethodId String?   // 결제 수단 ID
+  status          String    // pending, completed, failed
+  pgTransactionId String?   // PG사 거래 ID
+  pgProvider      String?   // PG사 (Toss, KakaoPay 등)
+  receiptUrl      String?   // 영수증 URL
+  paidAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id])
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+}
+
+// 환불 정보
+model Refund {
+  id              String      @id @default(cuid())
+  subscriptionId  String
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id])
+  amount          Int
+  currency        String      @default("KRW")
+  reason          String?
+  status          String      @default("pending") // pending, completed, failed
+  pgRefundId      String?     // 토스페이먼츠 환불 ID
+  refundedAt      DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([subscriptionId])
+}
+
+// 시스템 설정 모델
+model SystemSetting {
+  id          String    @id @default(cuid())
+  key         String    @unique
+  value       String
+  description String?
+  updatedAt   DateTime  @updatedAt
+  updatedBy   String?
+  createdAt   DateTime  @default(now())
+}

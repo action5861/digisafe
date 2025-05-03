@@ -1,0 +1,1 @@
+// Subscription type definitions will be implemented here 

@@ -1,0 +1,1 @@
+// Trusted contacts API route will be implemented here 
