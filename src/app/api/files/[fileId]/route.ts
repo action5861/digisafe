@@ -101,4 +101,72 @@ export async function GET(
       { status: 500 }
     );
   }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { fileId: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: '인증되지 않은 요청입니다.' },
+        { status: 401 }
+      );
+    }
+    
+    const fileId = params.fileId;
+    const userId = session.user.id;
+    
+    // 파일 존재 여부 및 소유권 확인
+    const file = await prisma.file.findUnique({
+      where: { id: fileId },
+      select: { userId: true, storagePath: true }
+    });
+    
+    if (!file) {
+      return NextResponse.json(
+        { error: '파일을 찾을 수 없습니다.' },
+        { status: 404 }
+      );
+    }
+    
+    if (file.userId !== userId) {
+      return NextResponse.json(
+        { error: '이 파일을 삭제할 권한이 없습니다.' },
+        { status: 403 }
+      );
+    }
+    
+    // 파일 시스템에서 파일 삭제
+    if (file.storagePath) {
+      try {
+        const fs = require('fs');
+        if (fs.existsSync(file.storagePath)) {
+          fs.unlinkSync(file.storagePath);
+        }
+      } catch (error) {
+        console.error('파일 시스템에서 파일 삭제 실패:', error);
+        // 파일 시스템 삭제 실패는 데이터베이스 삭제를 막지 않음
+      }
+    }
+    
+    // 데이터베이스에서 파일 레코드 삭제
+    await prisma.file.delete({
+      where: { id: fileId }
+    });
+    
+    return NextResponse.json(
+      { message: '파일이 성공적으로 삭제되었습니다.' },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error('파일 삭제 오류:', error);
+    return NextResponse.json(
+      { error: '파일 삭제 중 오류가 발생했습니다.' },
+      { status: 500 }
+    );
+  }
 } 

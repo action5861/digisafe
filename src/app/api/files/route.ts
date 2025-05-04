@@ -2,14 +2,15 @@
 // src/app/api/files/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest) {
   try {
     // 세션 확인
-    const session = await auth();
+    const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json(
         { error: '인증되지 않은 요청입니다.' },

@@ -64,6 +64,25 @@ export default function FileList({ refreshTrigger = 0 }: FileListProps) {
     });
   };
 
+  const handleDeleteFile = async (fileId: string) => {
+    try {
+      const response = await fetch(`/api/files/${fileId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '파일 삭제에 실패했습니다.');
+      }
+
+      // 파일 목록 새로고침
+      setFiles(files.filter(file => file.id !== fileId));
+    } catch (error) {
+      console.error('파일 삭제 오류:', error);
+      setError(error instanceof Error ? error.message : '파일 삭제 중 오류가 발생했습니다.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-32">
@@ -115,7 +134,7 @@ export default function FileList({ refreshTrigger = 0 }: FileListProps) {
               className="p-2 text-gray-500 hover:text-red-500 transition-colors"
               onClick={() => {
                 if (confirm('정말로 이 파일을 삭제하시겠습니까?')) {
-                  // TODO: 파일 삭제 API 호출
+                  handleDeleteFile(file.id);
                 }
               }}
             >
